@@ -1,0 +1,62 @@
+{
+  "id": "5e4e86fb-7392-4c44-b037-dc13438e293f",
+  "prevId": "66b353e1-d3db-4817-8611-485e47be9098",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.circuito": {
+      "name": "circuito",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "divisiones_hacia_arriba": {
+          "name": "divisiones_hacia_arriba",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actualizado_en": {
+          "name": "actualizado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "circuito_fila_unica": {
+          "name": "circuito_fila_unica",
+          "value": "\"circuito\".\"id\" = 1"
+        }
+      },
+      "isRLSEnabled": true
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

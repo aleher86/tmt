@@ -1,0 +1,62 @@
+# Stack local de Pique. Referencia completa:
+# https://supabase.com/docs/guides/local-development/cli/config
+#
+# Esto es una config recortada a propósito: solo lo que la Fase 1 usa. Todo lo que no
+# aparece acá toma el valor por defecto del CLI.
+#
+# Quedan afuera Realtime, Edge Runtime y analítica. El de analítica es además el
+# contenedor que más memoria consume y el que más seguido rompe el arranque.
+project_id = "pique"
+
+# La puerta de enlace atiende Auth y Storage en este puerto.
+#
+# `[api]` es PostgREST, y ADR-0001 dice que no lo usamos: todas las queries van por Drizzle
+# contra la connection string. Apagado, la API de datos no expone `public` a `anon`.
+[api]
+enabled = false
+port = 54321
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+# Las migraciones las genera y las aplica Drizzle desde `drizzle/`, no el CLI de
+# Supabase: hay un solo sistema de migraciones y es el mismo que define el schema.
+# Ver ADR-0005 y `scripts/dev/migrar.ts`.
+[db.migrations]
+enabled = false
+
+# Sembrar también es nuestro: `pnpm db:seed`.
+[db.seed]
+enabled = false
+
+# Fuera de la Fase 1. Ver "No entra" en docs/plan-tmt.md.
+[realtime]
+enabled = false
+
+[edge_runtime]
+enabled = false
+
+[analytics]
+enabled = false
+
+[studio]
+enabled = true
+port = 54323
+api_url = "http://127.0.0.1"
+
+# Desde el día uno: escudos de club y fotos.
+[storage]
+enabled = true
+
+# Las cuentas demo y su política de acceso llegan en #14; acá solo hace falta que el servicio
+# esté levantado.
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3000"
+
+# Servidor de mail de prueba. Nada sale a internet.
+[local_smtp]
+enabled = true
+port = 54324

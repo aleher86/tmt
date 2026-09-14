@@ -1,0 +1,28 @@
+:root {
+  color-scheme: light dark;
+  --fondo: #fbfbf9;
+  --tinta: #16181d;
+  --tenue: #6a7078;
+  --borde: #e3e2dd;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fondo: #121317;
+    --tinta: #eceef2;
+    --tenue: #9aa1ab;
+    --borde: #2a2d34;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 2rem 1rem;
+  background: var(--fondo);
+  color: var(--tinta);
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+}

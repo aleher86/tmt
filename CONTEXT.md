@@ -5,6 +5,14 @@ sedes; los jugadores se anotan en divisiones y compiten por un rating único y g
 
 ## Language
 
+### El todo
+
+**Circuito**:
+El conjunto del sistema: todos los Clubes, Ligas, Torneos y Jugadores bajo un mismo Rating y un
+mismo Ranking. Es también donde viven los parámetros globales, como cuántas Divisiones hacia
+arriba habilita la Elegibilidad. Nunca es sinónimo de Liga.
+_Avoid_: sistema, plataforma
+
 ### Personas y entidades
 
 **Jugador**:
