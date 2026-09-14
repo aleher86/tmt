@@ -87,6 +87,16 @@ del sistema, el día del torneo. Un Jugador puede tener varias Inscripciones en 
 en Divisiones distintas.
 _Avoid_: registro, anotación
 
+### La aplicación
+
+**Sección**:
+Cada una de las partes en las que se divide la aplicación: Inicio, Torneos, Clubes, Ranking,
+Jugadores y Perfil. Cuatro de ellas —Torneos, Clubes, Ranking y Perfil— tienen lugar en la barra
+inferior del teléfono; a las otras se llega desde adentro. Una ficha pertenece a su Sección:
+`/clubes/san-lorenzo` es Clubes. Es un término de navegación, no de dominio: no existe fuera de
+la interfaz.
+_Avoid_: pestaña, solapa, pantalla
+
 ### Puntaje
 
 **Rating**:

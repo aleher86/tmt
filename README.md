@@ -31,6 +31,12 @@ La app queda en <http://localhost:3000> y Supabase Studio en <http://localhost:5
 ## Cómo está armado
 
 - **Next 15 (App Router)**, Server Components para todo lo que es lectura.
+- **La cáscara** vive en `app/layout.tsx` y `components/cascara/`: encabezado, barra inferior en
+  el teléfono y navegación en el encabezado desde 48rem. Qué Secciones hay y cuál está activa
+  sale de [`lib/navegacion.ts`](lib/navegacion.ts), que no importa Next y se testea sola. Cada
+  segmento tiene su `loading.tsx` con la forma de lo que va a mostrar, y las transiciones entre
+  Secciones usan React `<ViewTransition>` (ver
+  [ADR-0006](./docs/adr/0006-view-transitions-sobre-react-experimental.md)).
 - **Supabase local** para Postgres, Auth y Storage. La config vive versionada en
   [`supabase/config.toml`](supabase/config.toml) y deja afuera Realtime, Edge Runtime,
   analítica y PostgREST: la Fase 1 no los usa y el de analítica es el que más memoria consume.
