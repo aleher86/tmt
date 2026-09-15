@@ -108,16 +108,35 @@ function aNumero(texto: string | undefined | null): number | null {
   return digitos ? Number(digitos) : null;
 }
 
-/** Un `<td>` cuyas líneas están separadas por `<br>`, como las Divisiones o los precios. */
+/** Un `<td>` cuyas líneas están separadas por `<br>`, como los precios o los horarios. */
 function aLineas(html: string): string[] {
+  return partir(html, /<br\s*\/?>/i);
+}
+
+/**
+ * Las Divisiones se separan con `<br>` en la ficha viva, pero con " | " en la variante "jugado".
+ * Partir solo por `<br>` deja a cada Torneo ya jugado con su primera División y nada más.
+ */
+function lineasDeDivisiones(html: string): string[] {
+  return partir(html, /<br\s*\/?>|\|/i);
+}
+
+function partir(html: string, separador: RegExp): string[] {
   return html
-    .split(/<br\s*\/?>/i)
+    .split(separador)
     .map(aTexto)
     .filter((linea) => linea.length > 0);
 }
 
+/** Las filas de una tabla, cada una ya como el texto de sus celdas. */
+function filasDeTexto(html: string): string[][] {
+  return [...html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)].map((fila) =>
+    celdas(fila[1] ?? "").map((celda) => celda.texto),
+  );
+}
+
 /** El valor sin rótulo que el sitio pone en la fila de abajo (la localidad, bajo la dirección). */
-function celdaSiguienteA(lista: Celda[], rotulo: string): string | null {
+function celdaDeLaFilaDeAbajo(lista: Celda[], rotulo: string): string | null {
   const donde = lista.findIndex((celda) => celda.texto === rotulo);
   if (donde < 0) return null;
   return lista.slice(donde + 2).find((celda) => celda.texto.length > 0)?.texto ?? null;
@@ -168,11 +187,42 @@ export function parsearMarcadores(html: string): Marcador[] {
   return [...porClave.values()];
 }
 
+export type Distribuciones = { rating: number[]; edad: number[]; plantel: number[] };
+
+/**
+ * Las distribuciones que el generador necesita para calibrar, y nada más.
+ *
+ * Cada lista se ordena **por separado**: así quedan las distribuciones marginales y se pierde la
+ * correspondencia entre la edad y el Rating de una misma persona, que es lo que convertiría la
+ * muestra en una ficha. Es la forma concreta que toma ADR-0004 acá.
+ */
+export function distribuciones(
+  jugadores: JugadorDeLaMuestra[],
+  tamaniosDePlantel: (number | null)[],
+): Distribuciones {
+  const validos = (valores: (number | null)[]) =>
+    valores.filter((valor): valor is number => valor !== null && valor > 0).sort((a, b) => a - b);
+
+  return {
+    rating: validos(jugadores.map((jugador) => jugador.rating)),
+    edad: validos(jugadores.map((jugador) => jugador.edad)),
+    plantel: validos(tamaniosDePlantel),
+  };
+}
+
+/** Cuál de los dos conjuntos del mapa es un Club. El literal vive acá y no en quien lo consume. */
+export function esClub(marcador: Marcador): boolean {
+  return marcador.tipo === "clubes";
+}
+
 /** Los Clubes adheridos son los que `clubes.asp` enlaza; el resto solo figura en el desplegable. */
 export function parsearClubesAdheridos(html: string): number[] {
   const ids = [...html.matchAll(/clubes_ampliar\.asp\?codigo=(\d+)/g)].map((m) => Number(m[1]));
   return [...new Set(ids)].sort((a, b) => a - b);
 }
+
+/** Lo único que se guarda de un Jugador del plantel: ni nombre, ni código. Ver ADR-0004. */
+export type JugadorDeLaMuestra = { rating: number | null; edad: number | null };
 
 export type FichaDeClub = {
   nombre: string;
@@ -186,7 +236,7 @@ export type FichaDeClub = {
   jugadores: number | null;
   edadPromedio: number | null;
   /** Rating y edad de cada Jugador del plantel. Sin código ni nombre: ver ADR-0004. */
-  plantel: { rating: number | null; edad: number | null }[];
+  plantel: JugadorDeLaMuestra[];
 };
 
 export function parsearFichaDeClub(html: string): FichaDeClub {
@@ -200,7 +250,7 @@ export function parsearFichaDeClub(html: string): FichaDeClub {
 
   // "ALMAGRO - Capital Federal" va en la fila de abajo de la dirección, sin rótulo propio.
   const [localidad, provincia] =
-    celdaSiguienteA(lista, "Dirección:")
+    celdaDeLaFilaDeAbajo(lista, "Dirección:")
       ?.split(" - ")
       .map((parte) => parte.trim()) ?? [];
 
@@ -223,10 +273,8 @@ export function parsearFichaDeClub(html: string): FichaDeClub {
  * El plantel se lee por posición de columna, guiándose por el encabezado. Se quedan **solo**
  * rating y edad: el código y el nombre del Jugador no se copian ni acá ni a la salida (ADR-0004).
  */
-function parsearPlantel(html: string): { rating: number | null; edad: number | null }[] {
-  const filas = [...html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)].map((m) =>
-    celdas(m[1] ?? "").map((celda) => celda.texto),
-  );
+function parsearPlantel(html: string): JugadorDeLaMuestra[] {
+  const filas = filasDeTexto(html);
   const encabezado = filas.findIndex(
     (fila) => fila.includes("Rating") && fila.includes("Edad") && fila.includes("Jugador"),
   );
@@ -234,7 +282,7 @@ function parsearPlantel(html: string): { rating: number | null; edad: number | n
 
   const columnas = filas[encabezado] ?? [];
   const donde = { rating: columnas.indexOf("Rating"), edad: columnas.indexOf("Edad") };
-  const plantel: { rating: number | null; edad: number | null }[] = [];
+  const plantel: JugadorDeLaMuestra[] = [];
   for (const fila of filas.slice(encabezado + 1)) {
     // Entre Jugador y Jugador el sitio intercala filas separadoras de una sola celda vacía.
     if (fila.length !== columnas.length) continue;
@@ -286,9 +334,9 @@ export type DivisionGlobal = {
  * "hasta desde"; la primera solo trae el piso y la última solo el techo, porque están abiertas.
  */
 export function parsearDivisionesGlobales(html: string): DivisionGlobal[] {
-  const filas = [...html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)]
-    .map((m) => celdas(m[1] ?? "").map((celda) => celda.texto))
-    .filter((fila) => fila.length === 4 && /^[A-ZÁÉÍÓÚÑ]{4,}$/.test(fila[0] ?? ""));
+  const filas = filasDeTexto(html).filter(
+    (fila) => fila.length === 4 && /^[A-ZÁÉÍÓÚÑ]{4,}$/.test(fila[0] ?? ""),
+  );
 
   return filas.map((fila, indice) => {
     const numeros = (fila[3] ?? "").match(/\d+/g)?.map(Number) ?? [];
@@ -373,6 +421,8 @@ export type FichaDeTorneo = {
   nombre: string;
   edicion: number | null;
   ligaId: number | null;
+  /** El Club de la Sede. La ficha lo enlaza, así que la Liga queda atada a un Club por id. */
+  clubId: number | null;
   fecha: string | null;
   sede: string | null;
   direccion: string | null;
@@ -394,11 +444,12 @@ export function parsearFichaDeTorneo(codigo: number, html: string): FichaDeTorne
   // La celda cambia de rótulo entre la ficha viva ("Divisiones:") y la "jugado" ("Categorías:").
   const celdaDivisiones = campo.get("Divisiones") ?? campo.get("Categorías");
   const divisiones = celdaDivisiones
-    ? aLineas(celdaDivisiones.html)
+    ? lineasDeDivisiones(celdaDivisiones.html)
         .map(parsearDivisionDelTorneo)
         .filter((division): division is DivisionDelTorneo => division !== null)
     : [];
 
+  const celdaPelotitas = campo.get("Pelotitas");
   const celdaPrecios = campo.get("Inscripción");
   const precios = celdaPrecios
     ? aLineas(celdaPrecios.html).map((linea) => ({
@@ -412,11 +463,12 @@ export function parsearFichaDeTorneo(codigo: number, html: string): FichaDeTorne
     nombre,
     edicion: aNumero(/^(\d+)\s*[°ºª]/.exec(nombre)?.[1]),
     ligaId: aNumero(/torneos\.asp\?filtroLiga=(\d+)/.exec(html)?.[1]),
+    clubId: aNumero(/clubes_ampliar\.asp\?codigo=(\d+)/.exec(html)?.[1]),
     fecha: parsearFecha(aTexto(html.replace(/<[^>]*>/g, "\n"))),
     sede: texto("Sede"),
-    direccion: celdaSiguienteA(lista, "Sede:"),
+    direccion: celdaDeLaFilaDeAbajo(lista, "Sede:"),
     mesas: texto("Mesas"),
-    pelotitas: campo.get("Pelotitas") ? aLineas(campo.get("Pelotitas")!.html).join(", ") : null,
+    pelotitas: celdaPelotitas ? aLineas(celdaPelotitas.html).join(", ") : null,
     informacionAdicional: texto("Información adicional sobre los acceso"),
     precios,
     divisiones,

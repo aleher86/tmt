@@ -13,11 +13,14 @@
  *   pnpm scrape                      # el año en curso, completo
  *   pnpm scrape -- --limite=5        # prueba de humo, 5 Clubes y 5 Torneos
  *   pnpm scrape -- --anio=2025 --pausa=2000
+ *   pnpm scrape -- --salida=otro.json
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
 import {
+  distribuciones,
+  esClub,
   parsearClubesAdheridos,
   parsearCodigosDeTorneo,
   parsearDivisionesGlobales,
@@ -27,7 +30,6 @@ import {
   parsearSelect,
   type FichaDeTorneo,
   type Marcador,
-  type Opcion,
 } from "./parseo";
 
 const SITIO = "https://www.tenisdemesaparatodos.com";
@@ -75,17 +77,8 @@ async function bajar(ruta: string): Promise<string | null> {
   return null;
 }
 
-/** Ratings y edades del plantel, cada lista ordenada **por separado**: quedan las distribuciones
- * marginales y se pierde la correspondencia entre una edad y un Rating, que es lo que convertiría
- * la muestra en una ficha. Es todo lo que el generador necesita para calibrar. */
-function distribuciones(planteles: { rating: number | null; edad: number | null }[]) {
-  const numeros = (elegir: (fila: { rating: number | null; edad: number | null }) => number | null) =>
-    planteles
-      .map(elegir)
-      .filter((valor): valor is number => valor !== null && valor > 0)
-      .sort((a, b) => a - b);
-
-  return { rating: numeros((fila) => fila.rating), edad: numeros((fila) => fila.edad) };
+function progreso(que: string, hechos: number, total: number) {
+  if (hechos % 25 === 0 || hechos === total) console.log(`  ${que} ${hechos}/${total}`);
 }
 
 async function scrapear() {
@@ -106,7 +99,7 @@ async function scrapear() {
 
   const adheridos = parsearClubesAdheridos(listado);
   // El mapa dibuja Clubes y Asociaciones juntos, con ids que se pisan entre sí. Acá van Clubes.
-  const marcadores = parsearMarcadores(mapa).filter((marcador) => marcador.tipo === "clubes");
+  const marcadores = parsearMarcadores(mapa).filter(esClub);
   const porId = new Map<number, Marcador>(marcadores.map((marcador) => [marcador.id, marcador]));
 
   const regiones = parsearSelect(ranking, "fReg");
@@ -153,9 +146,7 @@ async function scrapear() {
       adherido: deAdheridos.has(id),
     });
 
-    if ((indice + 1) % 25 === 0 || indice + 1 === aBajar.length) {
-      console.log(`  Clubes ${indice + 1}/${aBajar.length}`);
-    }
+    progreso("Clubes", indice + 1, aBajar.length);
   }
 
   console.log("");
@@ -167,12 +158,28 @@ async function scrapear() {
     const html = await bajar(`torneos_ampliar.asp?codigo=${codigo}`);
     if (html) torneos.push(parsearFichaDeTorneo(codigo, html));
 
-    if ((indice + 1) % 25 === 0 || indice + 1 === codigos.length) {
-      console.log(`  Torneos ${indice + 1}/${codigos.length}`);
-    }
+    progreso("Torneos", indice + 1, codigos.length);
   }
 
-  const muestra = distribuciones(planteles);
+  const muestra = distribuciones(
+    planteles,
+    clubes.map((club) => club.jugadores),
+  );
+
+  // "Ligas con su Club habitual": el sitio no lo publica, pero la ficha de cada Torneo enlaza el
+  // Club de su Sede, así que la Liga queda atada al Club donde corre. Las Ligas sin Torneos en lo
+  // scrapeado quedan en null: son las que no tuvieron actividad en la ventana bajada.
+  const clubesPorLiga = new Map<number, Set<number>>();
+  for (const torneo of torneos) {
+    if (torneo.ligaId === null || torneo.clubId === null) continue;
+    const suyos = clubesPorLiga.get(torneo.ligaId) ?? new Set<number>();
+    clubesPorLiga.set(torneo.ligaId, suyos.add(torneo.clubId));
+  }
+  const ligasConClub = ligas.map((liga) => {
+    const suyos = [...(clubesPorLiga.get(Number(liga.id)) ?? [])];
+    return { ...liga, clubHabitualId: suyos.length === 1 ? (suyos[0] ?? null) : null };
+  });
+
   const salida = {
     generadoEn: new Date().toISOString(),
     fuente: SITIO,
@@ -186,20 +193,22 @@ async function scrapear() {
       regiones: regiones.length,
       asociaciones: asociaciones.length,
       ligas: ligas.length,
+      ligasConClubHabitual: ligasConClub.filter((liga) => liga.clubHabitualId !== null).length,
       torneos: torneos.length,
       torneosConCupos: torneos.filter((torneo) => torneo.conCupos).length,
       jugadoresDeLaMuestra: muestra.rating.length,
+      divisionesDeTorneo: torneos.reduce((total, t) => total + t.divisiones.length, 0),
     },
     regiones,
     asociaciones,
     divisiones,
-    ligas,
+    ligas: ligasConClub,
     clubes,
     torneos,
-    /** Solo distribuciones. Sin nombres, sin códigos, sin correspondencia entre las dos listas. */
+    /** Solo distribuciones. Sin nombres, sin códigos, sin correspondencia entre las listas. */
     muestra,
     fallos,
-  } satisfies Record<string, unknown> & { regiones: Opcion[] };
+  };
 
   await mkdir(dirname(SALIDA), { recursive: true });
   await writeFile(SALIDA, `${JSON.stringify(salida, null, 2)}\n`, "utf8");

@@ -11,6 +11,7 @@ import {
   parsearFichaDeTorneo,
   parsearMarcadores,
   parsearSelect,
+  distribuciones,
 } from "./parseo";
 
 // Los fragmentos son recortes textuales del sitio, ya decodificados de latin-1.
@@ -222,6 +223,7 @@ const FICHA_DE_TORNEO = `
 <html><head><title>TMT - Tenis de Mesa para Todos - Torneos de ping pong - 9&ordm; Torneo "La Casita Bar Ping Pong"</title></head>
 <body>
 <a href="torneos.asp?filtroLiga=383">Ver historial de torneos de esta liga</a>
+<a href="clubes_ampliar.asp?codigo=230">La Casita del BPP</a>
 <div>Lunes, 14 de Setiembre de 2026</div>
 <table>
   <tr><td nowrap><strong>Divisiones:</strong></td>
@@ -243,6 +245,7 @@ test("la ficha de un Torneo trae Liga, Edición, fecha, sede, Divisiones con Cup
 
   expect(torneo.edicion).toBe(9);
   expect(torneo.ligaId).toBe(383);
+  expect(torneo.clubId).toBe(230);
   expect(torneo.fecha).toBe("2026-09-14");
   expect(torneo.sede).toBe("La Casita del BPP");
   expect(torneo.direccion).toBe("Llerena 2847 - PARQUE CHAS - Capital Federal");
@@ -268,19 +271,51 @@ test("ni el Organizador ni el Juez general de un Torneo llegan a la salida", () 
   expect(JSON.stringify(torneo)).not.toContain("Myriam Morales");
 });
 
-// La variante "jugado" es la de un Torneo que ya pasó: conserva horarios y pierde Cupos y precios.
-test("la ficha de un Torneo ya jugado se reconoce por no tener Cupos", () => {
+/**
+ * La variante "jugado" es la de un Torneo que ya pasó: conserva las Divisiones y sus horarios,
+ * pierde Cupos y precios, y **las separa con " | " en vez de `<br>`**. Partir solo por `<br>`
+ * dejaba a cada Torneo jugado con una sola División: 527 de 548 del archivo.
+ */
+test("la ficha de un Torneo ya jugado separa sus Divisiones con barras, no con <br>", () => {
   const jugado = `
     <html><head><title>TMT - Tenis de Mesa para Todos - Torneos de ping pong - 5&ordm; Torneo "Ciudad Feliz"</title></head>
     <body><div>Domingo, 3 de marzo de 2024</div>
-    <table><tr><td><strong>Categor&iacute;as:</strong></td><td>6TA DIVISI&Oacute;N - 19:30 hs.</td></tr></table>
+    <table><tr><td><strong>Categor&iacute;as:</strong></td>
+      <td><strong>3RA DIVISI&Oacute;N   - 10:00 hs. | 4TA DIVISI&Oacute;N   - 13:00 hs. | 5TA DIVISI&Oacute;N   - 16:00 hs. | </strong></td></tr></table>
     </body></html>
   `;
 
   const torneo = parsearFichaDeTorneo(9420, jugado);
 
   expect(torneo.conCupos).toBe(false);
-  expect(torneo.divisiones).toEqual([
-    { nombre: "6TA DIVISIÓN", formato: null, hora: "19:30", mesas: null, cupo: null },
+  expect(torneo.divisiones.map((division) => [division.nombre, division.hora])).toEqual([
+    ["3RA DIVISIÓN", "10:00"],
+    ["4TA DIVISIÓN", "13:00"],
+    ["5TA DIVISIÓN", "16:00"],
   ]);
+});
+
+// ADR-0004: las listas se ordenan por separado justamente para que no se pueda reconstruir a
+// nadie. Si se ordenaran juntas, cada par (rating, edad) seguiría siendo una ficha.
+test("las distribuciones salen ordenadas por separado, sin conservar quién es quién", () => {
+  const muestra = distribuciones(
+    [
+      { rating: 1800, edad: 20 },
+      { rating: 900, edad: 60 },
+      { rating: 1400, edad: 40 },
+    ],
+    [26, 5, 111],
+  );
+
+  expect(muestra.rating).toEqual([900, 1400, 1800]);
+  expect(muestra.edad).toEqual([20, 40, 60]);
+  expect(muestra.plantel).toEqual([5, 26, 111]);
+});
+
+test("las distribuciones descartan lo que el sitio no publica", () => {
+  const muestra = distribuciones([{ rating: null, edad: 30 }, { rating: 1200, edad: null }], [null, 0, 12]);
+
+  expect(muestra.rating).toEqual([1200]);
+  expect(muestra.edad).toEqual([30]);
+  expect(muestra.plantel).toEqual([12]);
 });
