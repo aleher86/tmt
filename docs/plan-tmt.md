@@ -146,10 +146,9 @@ partidos no tiene sentido: se tirarían. Lo irremplazable son las entidades púb
 **Se scrapea**:
 
 - Clubes con **coordenadas** — es el único dato que no se puede fingir y es el momento "wow" de
-  la demo. Las coordenadas salen de `clubes_mapaTodos.asp`, ofuscadas con un `charCodeAt` que se
-  revierte con el mismo algoritmo que ya está en la página.
-- Torneos con sus divisiones, cupos, horarios de inicio y precios. La ficha real es
-  `torneos_ampliarJugado.asp?codigo=<n>` (`torneos_ampliar.asp` redirige 302).
+  la demo. Las coordenadas salen de `clubes_mapaTodos.asp`, en llamadas `addMarker(...)`.
+- Torneos con sus divisiones, cupos, horarios de inicio y precios. La ficha es
+  `torneos_ampliar.asp?codigo=<n>`.
 - Ligas con su nombre y su club habitual, y regiones.
 - Una **muestra de ~200 fichas de jugador**, solo para calibrar la distribución de ratings,
   edades y tamaño de plantel. No se publica ni un dato de esa muestra.
@@ -157,6 +156,25 @@ partidos no tiene sentido: se tirarían. Lo irremplazable son las entidades púb
 **Cómo**: script Node one-off en `scripts/scrape/`, decodificando **latin-1** al parsear o salen
 todos los acentos rotos. Rate limit bajo y User-Agent de navegador: hay Cloudflare adelante,
 aunque responde bien con UA de navegador.
+
+### Corrección al scrapear (verificado contra el sitio)
+
+Cuatro cosas que este plan daba por ciertas y no lo son. La salida está en `datos/tmt.json`:
+
+- **Las coordenadas no están ofuscadas.** `clubes_mapaTodos.asp` escribe `var lat` / `var lon`
+  como decimales planos. El `charCodeAt` que hay en esa página ofusca **direcciones de mail**, no
+  coordenadas: no hay nada que revertir.
+- **La ficha real del Torneo es `torneos_ampliar.asp`, no la variante "jugado".** La genérica
+  responde 200 para los Torneos próximos y es **la única que trae Cupos y precios**; recién
+  redirige 302 a `torneos_ampliarJugado.asp` cuando el Torneo ya pasó, y esa variante conserva
+  Divisiones y horarios pero pierde Cupos y precios.
+- **El mapa mezcla Clubes y Asociaciones, con espacios de id distintos.** El último argumento de
+  `addMarker` dice cuál es cuál. Los ids se pisan: el marcador 2 es la Asociación Santiagueña y el
+  Club 2 es Lomas del Mirador, a mil kilómetros. Son 205 Clubes y 4 Asociaciones.
+- **La Región no está publicada por Club.** El catálogo son 20 y se saca del select `fReg` de
+  `ranking.asp`, pero ninguna página expone a qué Región pertenece cada Club: `clubes.asp` no
+  tiene filtros y la ficha del Club no la nombra. Lo que sí trae cada Club es su provincia y su
+  localidad. Asignar Región es trabajo del generador.
 
 **Se genera** (`scripts/seed/`), en este orden, que es lo que garantiza que nada se contradiga:
 

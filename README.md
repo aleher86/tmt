@@ -27,6 +27,7 @@ La app queda en <http://localhost:3000> y Supabase Studio en <http://localhost:5
 | `pnpm db:migrate` | Aplica las migraciones a las dos bases. |
 | `pnpm db:seed` | Vuelve a sembrar. |
 | `pnpm db:start` / `pnpm db:stop` | Levanta y apaga el stack local por separado. |
+| `pnpm scrape` | One-off: rehace `datos/tmt.json` desde el sitio de TMT. **No hace falta para levantar el proyecto.** |
 
 ## Cómo está armado
 
@@ -43,6 +44,12 @@ La app queda en <http://localhost:3000> y Supabase Studio en <http://localhost:5
 - **Drizzle** para todas las queries y también para las migraciones, en `drizzle/`. El CLI de
   Supabase no aplica migraciones (`[db.migrations] enabled = false`): hay un solo sistema y es
   el mismo que define el schema.
+- **Las entidades públicas reales ya están bajadas** y versionadas en `datos/tmt.json`: Clubes con
+  coordenadas, Ligas, Regiones, Asociaciones, las Divisiones del Circuito y los Torneos del año con
+  sus Cupos, horarios y precios. El scrapeo (`scripts/scrape/`) está **fuera del ciclo**: se corrió
+  una vez y nadie tiene que volver a pegarle al sitio de TMT para levantar el proyecto. Los
+  Jugadores se generan, no se bajan (ver
+  [ADR-0004](./docs/adr/0004-datos-del-demo-generados.md)).
 - **Dos bases en la misma instancia de Postgres**: `postgres` para desarrollo y `pique_test`
   para la suite. La URL de tests se deriva de la de desarrollo en
   [`lib/db/url.ts`](lib/db/url.ts), no se configura aparte, así la suite no puede terminar
